@@ -141,3 +141,48 @@ func TestGetSchedules(t *testing.T) {
 		t.Error("Список расписаний пуст")
 	}
 }
+
+func TestGetScheduleDetails(t *testing.T) {
+	server := NewServer()
+
+	// Сначала создаем расписание
+	createData := models.ScheduleRequest{
+		UserID:       "test123",
+		MedicineName: "Аспирин",
+		Frequency:    3,
+		Duration:     7,
+	}
+	jsonData, _ := json.Marshal(createData)
+	createReq := httptest.NewRequest("POST", "/schedule", bytes.NewBuffer(jsonData))
+	createReq.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, createReq)
+
+	// Получаем schedule_id из ответа
+	var createResponse map[string]string
+	json.NewDecoder(w.Body).Decode(&createResponse)
+	scheduleID := createResponse["schedule_id"]
+
+	// Получаем детали расписания
+	req := httptest.NewRequest("GET", "/schedule?user_id=test123&schedule_id="+scheduleID, nil)
+	w = httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	// Проверяем статус
+	if w.Code != http.StatusOK {
+		t.Errorf("Ожидался статус 200, получен %d", w.Code)
+	}
+
+	// Проверяем данные расписания
+	var schedule models.Schedule
+	json.NewDecoder(w.Body).Decode(&schedule)
+	if schedule.ID != scheduleID {
+		t.Error("Неверный ID расписания")
+	}
+	if schedule.UserID != "test123" {
+		t.Error("Неверный ID пользователя")
+	}
+	if schedule.MedicineName != "Аспирин" {
+		t.Error("Неверное название лекарства")
+	}
+}

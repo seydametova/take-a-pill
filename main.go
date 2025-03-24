@@ -36,6 +36,7 @@ func NewServer() *Server {
 // Настройка маршрутов
 func (s *Server) routes() {
 	s.router.HandleFunc("/schedule", s.createSchedule).Methods("POST")
+	s.router.HandleFunc("/schedule", s.getScheduleDetails).Methods("GET")
 	s.router.HandleFunc("/schedules", s.getSchedules).Methods("GET")
 }
 
@@ -79,6 +80,51 @@ func (s *Server) getSchedules(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string][]string{
 		"schedule_ids": scheduleIDs,
 	})
+}
+
+// Обработчик для получения деталей расписания
+func (s *Server) getScheduleDetails(w http.ResponseWriter, r *http.Request) {
+	// Получаем параметры запроса
+	userID := r.URL.Query().Get("user_id")
+	scheduleID := r.URL.Query().Get("schedule_id")
+
+	log.Printf("Получен запрос на детали расписания: user_id=%s, schedule_id=%s", userID, scheduleID)
+
+	if userID == "" {
+		log.Println("Не указан user_id")
+		http.Error(w, "не указан user_id", http.StatusBadRequest)
+		return
+	}
+
+	if scheduleID == "" {
+		log.Println("Не указан schedule_id")
+		http.Error(w, "не указан schedule_id", http.StatusBadRequest)
+		return
+	}
+
+	// Получаем расписание из хранилища
+	schedule, err := s.db.GetScheduleByID(scheduleID)
+	if err != nil {
+		log.Printf("Ошибка при получении расписания: %v", err)
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Проверяем, что расписание принадлежит пользователю
+	if schedule.UserID != userID {
+		log.Printf("Расписание %s не принадлежит пользователю %s", scheduleID, userID)
+		http.Error(w, "расписание не найдено", http.StatusNotFound)
+		return
+	}
+
+	// Отправляем ответ
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(schedule); err != nil {
+		log.Printf("Ошибка при отправке ответа: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Успешно отправлены детали расписания %s", scheduleID)
 }
 
 func main() {
