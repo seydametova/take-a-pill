@@ -32,23 +32,23 @@ func TestCreateSchedule(t *testing.T) {
 
 	// Записываем ответ
 	w := httptest.NewRecorder()
-	server.createSchedule(w, req)
+	server.router.ServeHTTP(w, req)
 
-	// Проверяем что все ок
+	// Проверяем статус
 	if w.Code != http.StatusOK {
-		t.Error("Должен быть код 200")
+		t.Errorf("Ожидался статус 200, получен %d", w.Code)
 	}
 
-	// Проверяем что есть schedule_id
-	var result map[string]string
-	json.NewDecoder(w.Body).Decode(&result)
-	if result["schedule_id"] == "" {
-		t.Error("Нет schedule_id в ответе")
+	// Проверяем что вернулся schedule_id
+	var response map[string]string
+	json.NewDecoder(w.Body).Decode(&response)
+	if response["schedule_id"] == "" {
+		t.Error("Не получен schedule_id")
 	}
 }
 
 // Тест на пустой user_id
-func TestEmptyUserID(t *testing.T) {
+func TestCreateScheduleWithEmptyUserID(t *testing.T) {
 	server := NewServer()
 
 	// Отправляем запрос без user_id
@@ -64,11 +64,10 @@ func TestEmptyUserID(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 
 	w := httptest.NewRecorder()
-	server.createSchedule(w, req)
+	server.router.ServeHTTP(w, req)
 
-	// Должна быть ошибка
 	if w.Code != http.StatusInternalServerError {
-		t.Error("Должен быть код 500")
+		t.Errorf("Ожидался статус 500, получен %d", w.Code)
 	}
 }
 
@@ -79,14 +78,13 @@ func TestGetRequest(t *testing.T) {
 	// Делаем GET запрос вместо POST
 	req := httptest.NewRequest("GET", "/schedule", nil)
 	w := httptest.NewRecorder()
-	server.createSchedule(w, req)
+
+	// Используем router вместо прямого вызова обработчика
+	server.router.ServeHTTP(w, req)
 
 	// Должна быть ошибка
 	if w.Code != http.StatusMethodNotAllowed {
-		t.Error("Должен быть код 405")
-	}
-	if w.Body.String() != "Нужно использовать POST метод\n" {
-		t.Error("Неправильная ошибка")
+		t.Errorf("Ожидался код 405, получен %d", w.Code)
 	}
 }
 
@@ -107,5 +105,39 @@ func TestBadJSON(t *testing.T) {
 	}
 	if w.Body.String() != "Ошибка при чтении данных\n" {
 		t.Error("Неправильная ошибка")
+	}
+}
+
+func TestGetSchedules(t *testing.T) {
+	server := NewServer()
+
+	// Сначала создаем расписание
+	createData := models.ScheduleRequest{
+		UserID:       "test123",
+		MedicineName: "Аспирин",
+		Frequency:    3,
+		Duration:     7,
+	}
+	jsonData, _ := json.Marshal(createData)
+	createReq := httptest.NewRequest("POST", "/schedule", bytes.NewBuffer(jsonData))
+	createReq.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, createReq)
+
+	// Теперь получаем список расписаний
+	req := httptest.NewRequest("GET", "/schedules?user_id=test123", nil)
+	w = httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	// Проверяем статус
+	if w.Code != http.StatusOK {
+		t.Errorf("Ожидался статус 200, получен %d", w.Code)
+	}
+
+	// Проверяем что в ответе есть список расписаний
+	var response map[string][]string
+	json.NewDecoder(w.Body).Decode(&response)
+	if len(response["schedule_ids"]) == 0 {
+		t.Error("Список расписаний пуст")
 	}
 }

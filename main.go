@@ -8,29 +8,39 @@ import (
 
 	"take-a-pill/models"
 	"take-a-pill/storage"
+
+	"github.com/gorilla/mux"
 )
 
 // Структура для хранения данных сервера
 type Server struct {
 	// Хранилище для расписаний
 	db *storage.MemoryStorage
+	// Роутер
+	router *mux.Router
 }
 
 // Создаем новый сервер
 func NewServer() *Server {
-	return &Server{
-		db: storage.NewMemoryStorage(),
+	s := &Server{
+		db:     storage.NewMemoryStorage(),
+		router: mux.NewRouter(),
 	}
+
+	// Настраиваем маршруты
+	s.routes()
+
+	return s
+}
+
+// Настройка маршрутов
+func (s *Server) routes() {
+	s.router.HandleFunc("/schedule", s.createSchedule).Methods("POST")
+	s.router.HandleFunc("/schedules", s.getSchedules).Methods("GET")
 }
 
 // Обработчик для создания расписания
 func (s *Server) createSchedule(w http.ResponseWriter, r *http.Request) {
-	// Проверяем метод запроса
-	if r.Method != "POST" {
-		http.Error(w, "Нужно использовать POST метод", http.StatusMethodNotAllowed)
-		return
-	}
-
 	// Читаем тело запроса
 	var request models.ScheduleRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
@@ -52,17 +62,33 @@ func (s *Server) createSchedule(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(response))
 }
 
+// Обработчик для получения списка расписаний пользователя
+func (s *Server) getSchedules(w http.ResponseWriter, r *http.Request) {
+	// Получаем user_id из параметров запроса
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		http.Error(w, "не указан user_id", http.StatusBadRequest)
+		return
+	}
+
+	// Получаем список расписаний
+	scheduleIDs := s.db.GetSchedulesByUserID(userID)
+
+	// Отправляем ответ
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string][]string{
+		"schedule_ids": scheduleIDs,
+	})
+}
+
 func main() {
 	// Создаем сервер
 	server := NewServer()
 
-	// Настраиваем маршруты
-	http.HandleFunc("/schedule", server.createSchedule)
-
 	// Запускаем сервер
 	port := ":8081"
 	fmt.Printf("Сервер запущен на http://localhost%s\n", port)
-	err := http.ListenAndServe(port, nil)
+	err := http.ListenAndServe(port, server.router)
 	if err != nil {
 		log.Fatalf("Ошибка при запуске сервера: %v\n", err)
 	}
