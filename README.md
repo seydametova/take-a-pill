@@ -1,5 +1,109 @@
 # Take a Pill
 
+Сервис для управления расписанием приема лекарств. Позволяет создавать расписания приема лекарств и получать информацию о ближайших приемах.
+
+## Функциональность
+
+- Создание расписания приема лекарств
+- Получение деталей расписания
+- Получение списка ближайших приемов
+- Автоматическое распределение времени приема в течение дня
+- Фильтрация прошедших приемов
+
+## Требования
+
+- Go 1.16 или выше
+- gorilla/mux (для маршрутизации)
+
+## Установка
+
+1. Клонируйте репозиторий:
+```bash
+git clone https://github.com/yourusername/take-a-pill.git
+cd take-a-pill
+```
+
+2. Установите зависимости:
+```bash
+go mod download
+```
+
+3. Запустите сервер:
+```bash
+go run main.go
+```
+
+Сервер будет доступен по адресу: http://localhost:8081
+
+## API Endpoints
+
+### Создание расписания
+```http
+POST /schedule
+Content-Type: application/json
+
+{
+    "user_id": "string",
+    "medicine_name": "string",
+    "frequency": integer,
+    "duration": integer
+}
+```
+
+### Получение деталей расписания
+```http
+GET /schedule?user_id=string&schedule_id=uuid
+```
+
+### Получение списка ближайших приемов
+```http
+GET /next_takings?user_id=string
+```
+
+## Примеры использования
+
+### Создание расписания
+```bash
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"user_id":"test123","medicine_name":"Аспирин","frequency":3,"duration":7}' \
+  http://localhost:8081/schedule
+```
+
+### Получение деталей расписания
+```bash
+curl "http://localhost:8081/schedule?user_id=test123&schedule_id=your-schedule-id"
+```
+
+### Получение списка ближайших приемов
+```bash
+curl "http://localhost:8081/next_takings?user_id=test123"
+```
+
+## OpenAPI документация
+
+Полная документация API доступна в файле `openapi.yaml`. Вы можете использовать этот файл с инструментами вроде Swagger UI для просмотра и тестирования API.
+
+## Тестирование
+
+Для запуска тестов выполните:
+```bash
+go test -v
+```
+
+## Структура проекта
+
+```
+take-a-pill/
+├── main.go           # Основной файл приложения
+├── main_test.go      # Тесты
+├── models/           # Модели данных
+│   └── models.go
+├── storage/          # Реализация хранилища
+│   └── storage.go
+├── openapi.yaml      # OpenAPI спецификация
+└── README.md         # Документация
+# Take a Pill
+
 Простой сервис для создания расписания приема лекарств.
 
 ## Что умеет сервис
