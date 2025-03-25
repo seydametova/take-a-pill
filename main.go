@@ -35,9 +35,18 @@ func NewServer() *Server {
 
 // Настройка маршрутов
 func (s *Server) routes() {
+	// Добавляем логирование для всех запросов
+	s.router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("Получен запрос: %s %s", r.Method, r.URL.Path)
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	s.router.HandleFunc("/schedule", s.createSchedule).Methods("POST")
 	s.router.HandleFunc("/schedule", s.getScheduleDetails).Methods("GET")
 	s.router.HandleFunc("/schedules", s.getSchedules).Methods("GET")
+	s.router.HandleFunc("/next_takings", s.getNextTakings).Methods("GET")
 }
 
 // Обработчик для создания расписания
@@ -125,6 +134,31 @@ func (s *Server) getScheduleDetails(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("Успешно отправлены детали расписания %s", scheduleID)
+}
+
+// Обработчик для получения следующих приемов
+func (s *Server) getNextTakings(w http.ResponseWriter, r *http.Request) {
+	// Получаем user_id из параметров запроса
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		log.Println("Не указан user_id")
+		http.Error(w, "не указан user_id", http.StatusBadRequest)
+		return
+	}
+
+	// Получаем следующие приемы
+	nextTakings := s.db.GetNextTakings(userID)
+
+	// Отправляем ответ
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string][]models.NextTaking{
+		"takings": nextTakings,
+	}); err != nil {
+		log.Printf("Ошибка при отправке ответа: %v", err)
+		http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("Успешно отправлены следующие приемы для пользователя %s", userID)
 }
 
 func main() {

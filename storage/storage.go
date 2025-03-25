@@ -2,6 +2,8 @@ package storage
 
 import (
 	"fmt"
+	"log"
+	"sort"
 	"sync"
 	"take-a-pill/models"
 	"time"
@@ -111,24 +113,68 @@ func (s *MemoryStorage) GetNextTakings(userID string) []models.NextTaking {
 
 	var nextTakings []models.NextTaking
 	now := time.Now()
-	currentHour := now.Hour()
+	log.Printf("=== Начало GetNextTakings ===")
+	log.Printf("Текущее время: %v", now.Format("15:04:05"))
 
 	for id, schedule := range s.schedules {
+		log.Printf("\nПроверка расписания %s:", id)
+		log.Printf("- Пользователь: %s", schedule.UserID)
+		log.Printf("- Лекарство: %s", schedule.MedicineName)
+		log.Printf("- Частота: %d раз в день", schedule.Frequency)
+		log.Printf("- Длительность: %d дней", schedule.Duration)
+		log.Printf("- Создано: %v", schedule.CreatedAt.Format("2006-01-02 15:04:05"))
+		log.Printf("- Времена приема: %v", schedule.TakingTimes)
+
 		if schedule.UserID != userID {
+			log.Printf("Пропускаем: расписание принадлежит другому пользователю")
 			continue
 		}
 
-		times := s.CalculateTakingTimes(schedule)
-		for _, t := range times {
-			if t.Hour == currentHour || t.Hour == currentHour+1 {
-				nextTakings = append(nextTakings, models.NextTaking{
-					ScheduleID:     id,
-					MedicineName:   schedule.MedicineName,
-					NextTakingTime: t,
-				})
+		// Проверяем, не истек ли срок действия расписания
+		endDate := schedule.CreatedAt.AddDate(0, 0, schedule.Duration)
+		if now.After(endDate) {
+			log.Printf("Пропускаем: расписание истекло (конец: %v)", endDate.Format("2006-01-02 15:04:05"))
+			continue
+		}
+
+		for _, t := range schedule.TakingTimes {
+			// Создаем время приема на сегодня
+			takingTime := time.Date(now.Year(), now.Month(), now.Day(), t.Hour, t.Minute, 0, 0, now.Location())
+
+			log.Printf("\nПроверка времени приема %v:", takingTime.Format("15:04"))
+
+			// Если время уже прошло, пропускаем
+			if now.After(takingTime) {
+				log.Printf("- Пропускаем: время уже прошло")
+				continue
 			}
+
+			log.Printf("- Добавляем в список приемов")
+			nextTakings = append(nextTakings, models.NextTaking{
+				ScheduleID:     id,
+				MedicineName:   schedule.MedicineName,
+				NextTakingTime: t,
+			})
 		}
 	}
+
+	// Сортируем по времени приема
+	sort.Slice(nextTakings, func(i, j int) bool {
+		timeI := time.Date(now.Year(), now.Month(), now.Day(),
+			nextTakings[i].NextTakingTime.Hour,
+			nextTakings[i].NextTakingTime.Minute, 0, 0, now.Location())
+		timeJ := time.Date(now.Year(), now.Month(), now.Day(),
+			nextTakings[j].NextTakingTime.Hour,
+			nextTakings[j].NextTakingTime.Minute, 0, 0, now.Location())
+		return timeI.Before(timeJ)
+	})
+
+	log.Printf("\n=== Результаты ===")
+	log.Printf("Всего найдено приемов: %d", len(nextTakings))
+	for _, t := range nextTakings {
+		log.Printf("- %s в %02d:%02d", t.MedicineName, t.NextTakingTime.Hour, t.NextTakingTime.Minute)
+	}
+	log.Printf("=== Конец GetNextTakings ===\n")
 
 	return nextTakings
 }

@@ -76,10 +76,10 @@ func CalculateTakingTimes(frequency int) []TakingTime {
 	}
 
 	// Рассчитываем интервал между приемами в минутах
-	interval := totalMinutes / frequency
+	interval := totalMinutes / (frequency + 1) // Добавляем 1 для равномерного распределения
 
 	var times []TakingTime
-	for i := 0; i < frequency; i++ {
+	for i := 1; i <= frequency; i++ {
 		// Рассчитываем время в минутах от начала дня
 		totalMinutes := (dayStart * 60) + (i * interval)
 

@@ -186,3 +186,62 @@ func TestGetScheduleDetails(t *testing.T) {
 		t.Error("Неверное название лекарства")
 	}
 }
+
+func TestGetNextTakings(t *testing.T) {
+	server := NewServer()
+
+	// Создаем несколько расписаний с разными временами приема
+	schedules := []models.ScheduleRequest{
+		{
+			UserID:       "test123",
+			MedicineName: "Аспирин",
+			Frequency:    3,
+			Duration:     7,
+		},
+		{
+			UserID:       "test123",
+			MedicineName: "Витамин С",
+			Frequency:    2,
+			Duration:     14,
+		},
+	}
+
+	// Создаем расписания
+	for _, schedule := range schedules {
+		jsonData, _ := json.Marshal(schedule)
+		req := httptest.NewRequest("POST", "/schedule", bytes.NewBuffer(jsonData))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		server.router.ServeHTTP(w, req)
+	}
+
+	// Получаем следующие приемы
+	req := httptest.NewRequest("GET", "/next_takings?user_id=test123", nil)
+	w := httptest.NewRecorder()
+	server.router.ServeHTTP(w, req)
+
+	// Проверяем статус
+	if w.Code != http.StatusOK {
+		t.Errorf("Ожидался статус 200, получен %d", w.Code)
+	}
+
+	// Проверяем данные
+	var response map[string][]models.NextTaking
+	json.NewDecoder(w.Body).Decode(&response)
+	if len(response["takings"]) == 0 {
+		t.Error("Список следующих приемов пуст")
+	}
+
+	// Проверяем структуру данных
+	for _, taking := range response["takings"] {
+		if taking.ScheduleID == "" {
+			t.Error("Пустой ID расписания")
+		}
+		if taking.MedicineName == "" {
+			t.Error("Пустое название лекарства")
+		}
+		if taking.NextTakingTime.Hour < 8 || taking.NextTakingTime.Hour >= 22 {
+			t.Error("Время приема вне допустимого диапазона (8:00-22:00)")
+		}
+	}
+}
